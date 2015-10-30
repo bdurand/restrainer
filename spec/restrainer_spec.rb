@@ -38,7 +38,7 @@ describe Restrainer do
     restrainer = Restrainer.new(:restrainer_test, limit: 1)
     x = nil
     restrainer.throttle do
-      restrainer.throttle(2){ x = 1 }
+      restrainer.throttle(limit: 2){ x = 1 }
     end
     expect(x).to eq(1)
   end
@@ -46,14 +46,14 @@ describe Restrainer do
   it "should allow processing to be turned off entirely by setting the limit to zero" do
     restrainer = Restrainer.new(:restrainer_test, limit: 1)
     x = nil
-    expect(lambda{restrainer.throttle(0){ x = 1 }}).to raise_error(Restrainer::ThrottledError)
+    expect(lambda{restrainer.throttle(limit: 0){ x = 1 }}).to raise_error(Restrainer::ThrottledError)
     expect(x).to eq(nil)
   end
   
   it "should allow the throttle to be opened up entirely with a negative limit" do
     restrainer = Restrainer.new(:restrainer_test, limit: 0)
     x = nil
-    restrainer.throttle(-1){ x = 1 }
+    restrainer.throttle(limit: -1){ x = 1 }
     expect(x).to eq(1)
   end
   

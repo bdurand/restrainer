@@ -42,14 +42,16 @@ class Restrainer
   end
   
   # Create a new restrainer. The name is used to identify the Restrainer and group processes together.
-  # You can create any number of Restrainers with different names. The limit parameter specifies
-  # the maximum number of processes that will be allowed to execute the throttle block at any point in time.
+  # You can create any number of Restrainers with different names.
+  #
+  # The required limit parameter specifies the maximum number of processes that will be allowed to execute the
+  # throttle block at any point in time.
   #
   # The timeout parameter is used for cleaning up internal data structures so that jobs aren't orphaned 
   # if their process is killed. Processes will automatically be removed from the running jobs list after the
   # specified number of seconds. Note that the Restrainer will not handle timing out any code itself. This
   # value is just used to insure the integrity of internal data structures.
-  def initialize(name, limit: -1, timeout: 60)
+  def initialize(name, limit:, timeout: 60)
     @name = name
     @limit = limit
     @timeout = timeout
@@ -60,8 +62,8 @@ class Restrainer
   # of processes (as identified by the name) are currently executing, then a Restrainer::ThrottledError
   # will be raised.
   #
-  # The limit argument can be used to override the limit set in the constructor. A limit of
-  def throttle(limit = nil)
+  # The limit argument can be used to override the value set in the constructor.
+  def throttle(limit: nil)
     limit ||= self.limit
     
     # limit of less zero is no limit; limit of zero is allow none
