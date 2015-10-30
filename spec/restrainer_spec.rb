@@ -17,10 +17,18 @@ describe Restrainer do
   end
   
   it "should throw an error if too many processes are already running" do
-    restrainer = Restrainer.new(:restrainer_test, limit: 1)
+    restrainer = Restrainer.new(:restrainer_test, limit: 5)
     x = nil
     restrainer.throttle do
-      expect(lambda{restrainer.throttle{ x = 1 }}).to raise_error(Restrainer::ThrottledError)
+      restrainer.throttle do
+        restrainer.throttle do
+          restrainer.throttle do
+            restrainer.throttle do
+              expect(lambda{restrainer.throttle{ x = 1 }}).to raise_error(Restrainer::ThrottledError)
+            end
+          end
+        end
+      end
     end
     expect(x).to eq(nil)
   end
