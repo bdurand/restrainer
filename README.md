@@ -19,7 +19,7 @@ Instances of Restrainer do not use any internal state to keep track of number of
 
 ### Configuration
 
-To set the redis connection used by for the gem you can either specify a block that yields a Redis::Client or explicitly set the attribute.
+To set the redis connection used by for the gem you can either specify a block that yields a Redis object (from the [redis](https://github.com/redis/redis-rb) gem) or you can explicitly set the attribute. The block form is generally preferred since it can work with connection pools, etc.
 
 ```ruby
 Restrainer.redis{ connection_pool.redis }
@@ -36,3 +36,5 @@ The timeout can be set by the timeout option on the constructor. If you have any
 ```ruby
 restrainer = Restrainer.new(:my_service, 100, timeout: 10)
 ```
+
+This gem does clean up after itself nicely, so that it won't ever leave unused data lying around in redis.
