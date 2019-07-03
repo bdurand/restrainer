@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require File.expand_path('../../lib/restrainer', __FILE__)
 require 'timecop'
 
@@ -10,6 +12,6 @@ RSpec.configure do |config|
   # the seed, which is printed after each run.
   #     --seed 1234
   config.order = 'random'
-  
+
   Restrainer.redis = Redis.new
 end

@@ -13,6 +13,8 @@ restrainer.throttle do
 end
 ```
 
+If the throttle is already full, the block will not be run and a `Restrainer::ThrottledError` will be raised.
+
 You can also override the limit in the `throttle` method. Setting a limit of zero will disable processing entirely. Setting a limit less than zero will remove the limit. Note that the limit set in the throttle is not shared with other processes, but the count of the number of processes is shared. Thus it is possible to have the throttle allow one process but reject another if the limits are different.
 
 Instances of Restrainer do not use any internal state to keep track of the number of running processes. All of that information is maintained in redis. Therefore you don't need to worry about maintaining references to Restrainer instances and you can create them as needed as long as they are named consistently. You can create multiple Restrainers for different uses in your application by simply giving them different names.
