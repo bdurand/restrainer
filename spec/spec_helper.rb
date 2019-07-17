@@ -13,5 +13,7 @@ RSpec.configure do |config|
   #     --seed 1234
   config.order = 'random'
 
-  Restrainer.redis = Redis.new
+  redis_opts = {}
+  redis_opts = {url: ENV["REDIS_URL"]} if ENV["REDIS_URL"]
+  Restrainer.redis = Redis.new(redis_opts)
 end
