@@ -41,7 +41,7 @@ class Restrainer
       redis.call('zadd', sorted_set, now, process_id)
       redis.call('expire', sorted_set, ttl)
     end
-    
+
     -- Return the number of processes running before the process was added.
     return process_count
   LUA
@@ -106,7 +106,7 @@ class Restrainer
 
     # limit of less zero is no limit; limit of zero is allow none
     return yield if limit < 0
-    
+
     process_id = lock!(limit: limit)
     begin
       yield
@@ -114,7 +114,7 @@ class Restrainer
       release!(process_id)
     end
   end
-  
+
   # Obtain a lock on one the allowed processes. The method returns a process
   # identifier that must be passed to the release! to release the lock.
   # You can pass in a unique identifier if you already have one.
@@ -122,7 +122,7 @@ class Restrainer
   # Raises a Restrainer::ThrottledError if the lock cannot be obtained.
   #
   # The limit argument can be used to override the value set in the constructor.
-  def lock!(process_id = nil, limit: limit)
+  def lock!(process_id = nil, limit: nil)
     process_id ||= SecureRandom.uuid
     limit ||= self.limit
 
@@ -133,7 +133,7 @@ class Restrainer
     add_process!(redis, process_id, limit)
     process_id
   end
-  
+
   # release one of the allowed processes. You must pass in a process id returned by the lock method.
   def release!(process_id)
     remove_process!(redis, process_id) unless process_id.nil?
@@ -143,7 +143,7 @@ class Restrainer
   def current
     redis.zcard(key).to_i
   end
-  
+
   # Clear all locks
   def clear!
     redis.del(key)
@@ -154,7 +154,7 @@ class Restrainer
   def redis
     @redis || self.class.redis
   end
-  
+
   # Hash key in redis to story a sorted set of current processes.
   def key
     @key
@@ -162,7 +162,7 @@ class Restrainer
 
   # Add a process to the currently run set.
   def add_process!(redis, process_id, throttle_limit)
-    process_count = eval_script(redis, process_id, throttle_limit)    
+    process_count = eval_script(redis, process_id, throttle_limit)
     if process_count >= throttle_limit
       raise ThrottledError.new("#{self.class}: #{@name} already has #{process_count} processes running")
     end

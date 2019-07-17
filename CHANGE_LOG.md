@@ -1,3 +1,7 @@
+# 1.1.1
+
+* Circular reference warning fix
+
 # 1.1.0
 
 * Expose manually locking and unlocking processes.
