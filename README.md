@@ -17,16 +17,35 @@ If the throttle is already full, the block will not be run and a `Restrainer::Th
 
 You can also override the limit in the `throttle` method. Setting a limit of zero will disable processing entirely. Setting a limit less than zero will remove the limit. Note that the limit set in the throttle is not shared with other processes, but the count of the number of processes is shared. Thus it is possible to have the throttle allow one process but reject another if the limits are different.
 
+You can also manually lock and release processes using the `lock` and `release` methods if your logic needs to break out of a block.
+
+```ruby
+  process_id = restrainer.lock!
+  begin
+    # Do something
+  ensure
+    restrainer.release!(process_id)
+  end
+```
+
+If you already hava a unique identifier, you can pass it in to the lock! method. This can be useful if the calls to `lock!` and `release!` are in different parts of the code but have access to the same common identifier. Identifiers are unique per throttle name, so you can use something as simple as database row id.
+
 Instances of Restrainer do not use any internal state to keep track of the number of running processes. All of that information is maintained in redis. Therefore you don't need to worry about maintaining references to Restrainer instances and you can create them as needed as long as they are named consistently. You can create multiple Restrainers for different uses in your application by simply giving them different names.
 
 ### Configuration
 
-To set the redis connection used by for the gem you can either specify a block that yields a Redis object (from the [redis](https://github.com/redis/redis-rb) gem) or you can explicitly set the attribute. The block form is generally preferred since it can work with connection pools, etc.
+To set the redis connection used by for the gem you can either specify a block that yields a `Redis` object (from the [redis](https://github.com/redis/redis-rb) gem) or you can explicitly set the attribute. The block form is generally preferred since it can work with connection pools, etc.
 
 ```ruby
 Restrainer.redis{ connection_pool.redis }
 
 Restrainer.redis = redis_client
+```
+
+You can also pass in a `Redis` instance in the constructor.
+
+```ruby
+restrainer = Restrainer.new(limit: 5, redis: my_redis)
 ```
 
 ### Internals

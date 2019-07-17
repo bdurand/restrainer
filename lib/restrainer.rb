@@ -88,11 +88,12 @@ class Restrainer
   # if their process is killed. Processes will automatically be removed from the running jobs list after the
   # specified number of seconds. Note that the Restrainer will not handle timing out any code itself. This
   # value is just used to insure the integrity of internal data structures.
-  def initialize(name, limit:, timeout: 60)
+  def initialize(name, limit:, timeout: 60, redis: nil)
     @name = name
     @limit = limit
     @timeout = timeout
     @key = "#{self.class.name}.#{name.to_s}"
+    @redis ||= redis
   end
 
   # Wrap a block with this method to throttle concurrent execution. If more than the alotted number
@@ -105,28 +106,55 @@ class Restrainer
 
     # limit of less zero is no limit; limit of zero is allow none
     return yield if limit < 0
-    raise ThrottledError.new("#{self.class}: #{@name} is not allowing any processing") if limit == 0
-
-    # Grab a reference to the redis instance to that it will be consistent throughout the method
-    redis = self.class.redis
-    process_id = SecureRandom.uuid
-    add_process!(redis, process_id, limit)
     
+    process_id = lock!(limit: limit)
     begin
       yield
     ensure
-      remove_process!(redis, process_id)
+      release!(process_id)
     end
+  end
+  
+  # Obtain a lock on one the allowed processes. The method returns a process
+  # identifier that must be passed to the release! to release the lock.
+  # You can pass in a unique identifier if you already have one.
+  #
+  # Raises a Restrainer::ThrottledError if the lock cannot be obtained.
+  #
+  # The limit argument can be used to override the value set in the constructor.
+  def lock!(process_id = nil, limit: limit)
+    process_id ||= SecureRandom.uuid
+    limit ||= self.limit
+
+    # limit of less zero is no limit; limit of zero is allow none
+    return nil if limit < 0
+    raise ThrottledError.new("#{self.class}: #{@name} is not allowing any processing") if limit == 0
+
+    add_process!(redis, process_id, limit)
+    process_id
+  end
+  
+  # release one of the allowed processes. You must pass in a process id returned by the lock method.
+  def release!(process_id)
+    remove_process!(redis, process_id) unless process_id.nil?
   end
 
   # Get the number of processes currently being executed for this restrainer.
-  def current(redis = nil)
-    redis ||= self.class.redis
+  def current
     redis.zcard(key).to_i
+  end
+  
+  # Clear all locks
+  def clear!
+    redis.del(key)
   end
 
   private
 
+  def redis
+    @redis || self.class.redis
+  end
+  
   # Hash key in redis to story a sorted set of current processes.
   def key
     @key
