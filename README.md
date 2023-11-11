@@ -1,5 +1,4 @@
-[![Build Status](https://travis-ci.org/weheartit/restrainer.svg?branch=master)](https://travis-ci.org/weheartit/restrainer)
-[![Maintainability](https://api.codeclimate.com/v1/badges/03b5e55a9ca6b3023e6f/maintainability)](https://codeclimate.com/github/weheartit/restrainer/maintainability)
+[![Ruby Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://github.com/testdouble/standard)
 
 This gem provides a method of throttling calls across processes that can be very useful if you have to call an external service with limited resources.
 

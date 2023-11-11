@@ -1,9 +1,8 @@
 # frozen_string_literal: true
 
-require 'spec_helper'
+require_relative "spec_helper"
 
 describe Restrainer do
-
   before(:each) do
     Restrainer.new(:restrainer_test, limit: 1).clear!
   end
@@ -17,7 +16,7 @@ describe Restrainer do
   it "should run a block!" do
     restrainer = Restrainer.new(:restrainer_test, limit: 1)
     x = nil
-    expect(restrainer.throttle{ x = restrainer.current }).to eq(1)
+    expect(restrainer.throttle { x = restrainer.current }).to eq(1)
     expect(x).to eq(1)
     expect(restrainer.current).to eq(0)
   end
@@ -30,7 +29,7 @@ describe Restrainer do
         restrainer.throttle do
           restrainer.throttle do
             restrainer.throttle do
-              expect(lambda{restrainer.throttle{ x = 1 }}).to raise_error(Restrainer::ThrottledError)
+              expect { restrainer.throttle { x = 1 } }.to raise_error(Restrainer::ThrottledError)
             end
           end
         end
@@ -43,7 +42,7 @@ describe Restrainer do
     restrainer = Restrainer.new(:restrainer_test, limit: 2)
     x = nil
     restrainer.throttle do
-      restrainer.throttle{ x = 1 }
+      restrainer.throttle { x = 1 }
     end
     expect(x).to eq(1)
   end
@@ -52,7 +51,7 @@ describe Restrainer do
     restrainer = Restrainer.new(:restrainer_test, limit: 1)
     x = nil
     restrainer.throttle do
-      restrainer.throttle(limit: 2){ x = 1 }
+      restrainer.throttle(limit: 2) { x = 1 }
     end
     expect(x).to eq(1)
   end
@@ -60,14 +59,14 @@ describe Restrainer do
   it "should allow processing to be turned off entirely by setting the limit to zero" do
     restrainer = Restrainer.new(:restrainer_test, limit: 1)
     x = nil
-    expect(lambda{restrainer.throttle(limit: 0){ x = 1 }}).to raise_error(Restrainer::ThrottledError)
+    expect { restrainer.throttle(limit: 0) { x = 1 } }.to raise_error(Restrainer::ThrottledError)
     expect(x).to eq(nil)
   end
 
   it "should allow the throttle to be opened up entirely with a negative limit" do
     restrainer = Restrainer.new(:restrainer_test, limit: 0)
     x = nil
-    restrainer.throttle(limit: -1){ x = 1 }
+    restrainer.throttle(limit: -1) { x = 1 }
     expect(x).to eq(1)
   end
 
@@ -76,7 +75,7 @@ describe Restrainer do
     x = nil
     restrainer.throttle do
       Timecop.travel(11) do
-        restrainer.throttle{ x = 1 }
+        restrainer.throttle { x = 1 }
       end
     end
     expect(x).to eq(1)
@@ -94,7 +93,7 @@ describe Restrainer do
           begin
             p5 = restrainer.lock!
             begin
-              expect{ restrainer.lock! }.to raise_error(Restrainer::ThrottledError)
+              expect { restrainer.lock! }.to raise_error(Restrainer::ThrottledError)
             ensure
               restrainer.release!(p5)
             end
@@ -121,7 +120,7 @@ describe Restrainer do
 
   it "should not get a lock! if the limit is 0" do
     restrainer = Restrainer.new(:restrainer_test, limit: 0)
-    expect{ restrainer.lock! }.to raise_error(Restrainer::ThrottledError)
+    expect { restrainer.lock! }.to raise_error(Restrainer::ThrottledError)
   end
 
   it "should get a lock! if the limit is negative" do
