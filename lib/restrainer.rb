@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'redis'
-require 'securerandom'
+require "redis"
+require "securerandom"
 
 # Redis backed throttling mechanism to ensure that only a limited number of processes can
 # be executed at any one time.
@@ -14,7 +14,6 @@ require 'securerandom'
 # If more than the specified number of processes as identified by the name argument is currently
 # running, then the throttle block will raise an error.
 class Restrainer
-
   attr_reader :name, :limit
 
   ADD_PROCESS_SCRIPT = <<-LUA
@@ -53,54 +52,69 @@ class Restrainer
   class ThrottledError < StandardError
   end
 
+  @redis = nil
+
   class << self
     # Either configure the redis instance using a block or yield the instance. Configuring with
     # a block allows you to use things like connection pools etc. without hard coding a single
     # instance.
     #
-    # Example: `Restrainer.redis { redis_pool.instance }`
+    # @param block [Proc] A block that returns a redis instance.
+    # @return [Redis] The redis instance.
+    # @example
+    #   Restrainer.redis { redis_pool.instance }
     def redis(&block)
       if block
         @redis = block
-      elsif defined?(@redis) && @redis
-        @redis.call
       else
-        raise "#{self.class.name}.redis not configured"
+        unless @redis
+          client = Redis.new
+          @redis = lambda { client }
+        end
+        @redis.call
       end
     end
 
-    # Set the redis instance to a specific instance. It is usually preferable to use the block
-    # form for configurating the instance so that it can be evaluated at runtime.
+    # Set the redis instance to a specific instance. It is usually preferable to use
+    # the block form for configurating the instance so that it can be evaluated at
+    # runtime.
     #
-    # Example: `Restrainer.redis = Redis.new`
+    # @param conn [Redis]
+    # @return [void]
+    # @example
+    #   Restrainer.redis = Redis.new
     def redis=(conn)
-      @redis = lambda{ conn }
+      @redis = lambda { conn }
     end
   end
 
-  # Create a new restrainer. The name is used to identify the Restrainer and group processes together.
-  # You can create any number of Restrainers with different names.
+  # Create a new restrainer. The name is used to identify the Restrainer and group
+  # processes together. You can create any number of Restrainers with different names.
   #
-  # The required limit parameter specifies the maximum number of processes that will be allowed to execute the
-  # throttle block at any point in time.
+  # The required limit parameter specifies the maximum number of processes that
+  # will be allowed to execute the throttle block at any point in time.
   #
-  # The timeout parameter is used for cleaning up internal data structures so that jobs aren't orphaned
-  # if their process is killed. Processes will automatically be removed from the running jobs list after the
-  # specified number of seconds. Note that the Restrainer will not handle timing out any code itself. This
+  # The timeout parameter is used for cleaning up internal data structures so that
+  # jobs aren't orphaned if their process is killed. Processes will automatically
+  # be removed from the running jobs list after the specified number of seconds.
+  # Note that the Restrainer will not handle timing out any code itself. This
   # value is just used to insure the integrity of internal data structures.
   def initialize(name, limit:, timeout: 60, redis: nil)
     @name = name
     @limit = limit
     @timeout = timeout
-    @key = "#{self.class.name}.#{name.to_s}"
-    @redis ||= redis
+    @key = "#{self.class.name}.#{name}"
+    @redis = redis
   end
 
-  # Wrap a block with this method to throttle concurrent execution. If more than the alotted number
-  # of processes (as identified by the name) are currently executing, then a Restrainer::ThrottledError
-  # will be raised.
+  # Wrap a block with this method to throttle concurrent execution. If more than the
+  # alotted number of processes (as identified by the name) are currently executing,
+  # then a Restrainer::ThrottledError will be raised.
   #
-  # The limit argument can be used to override the value set in the constructor.
+  # @param limit [Integer] The maximum number of processes that can be executing
+  #   at any one time. Defaults to the value passed to the constructor.
+  # @return [void]
+  # @raise [Restrainer::ThrottledError] If the throttle would be exceeded.
   def throttle(limit: nil)
     limit ||= self.limit
 
@@ -119,9 +133,12 @@ class Restrainer
   # identifier that must be passed to the release! to release the lock.
   # You can pass in a unique identifier if you already have one.
   #
-  # Raises a Restrainer::ThrottledError if the lock cannot be obtained.
-  #
-  # The limit argument can be used to override the value set in the constructor.
+  # @param process_id [String] A unique identifier for the process. If none is
+  #   passed, a unique value will be generated.
+  # @param limit [Integer] The maximum number of processes that can be executing
+  #   at any one time. Defaults to the value passed to the constructor.
+  # @return [String] The process identifier.
+  # @raise [Restrainer::ThrottledError] If the throttle would be exceeded.
   def lock!(process_id = nil, limit: nil)
     process_id ||= SecureRandom.uuid
     limit ||= self.limit
@@ -134,17 +151,27 @@ class Restrainer
     process_id
   end
 
-  # release one of the allowed processes. You must pass in a process id returned by the lock method.
+  # Release one of the allowed processes. You must pass in a process id
+  # returned by the lock method.
+  #
+  # @param process_id [String] The process identifier returned by the lock call.
+  # @return [Boolean] True if the process was released, false if it was not found.
   def release!(process_id)
-    remove_process!(redis, process_id) unless process_id.nil?
+    return false if process_id.nil?
+
+    remove_process!(redis, process_id)
   end
 
   # Get the number of processes currently being executed for this restrainer.
+  #
+  # @return [Integer] The number of processes currently being executed.
   def current
     redis.zcard(key).to_i
   end
 
-  # Clear all locks
+  # Clear all locks.
+  #
+  # @return [void]
   def clear!
     redis.del(key)
   end
@@ -156,9 +183,7 @@ class Restrainer
   end
 
   # Hash key in redis to story a sorted set of current processes.
-  def key
-    @key
-  end
+  attr_reader :key
 
   # Add a process to the currently run set.
   def add_process!(redis, process_id, throttle_limit)
@@ -168,15 +193,17 @@ class Restrainer
     end
   end
 
-  # Remove a process to the currently run set.
+  # Remove a process to the currently run set. Returns true if the process was removed.
   def remove_process!(redis, process_id)
-    redis.zrem(key, process_id)
+    result = redis.zrem(key, process_id)
+    result = true if result == 1
+    result
   end
 
   # Evaluate and execute a Lua script on the redis server.
   def eval_script(redis, process_id, throttle_limit)
     sha1 = @add_process_sha1
-    if sha1 == nil
+    if sha1.nil?
       sha1 = redis.script(:load, ADD_PROCESS_SCRIPT)
       @add_process_sha1 = sha1
     end
@@ -184,7 +211,7 @@ class Restrainer
     begin
       redis.evalsha(sha1, [], [key, process_id, throttle_limit, @timeout, Time.now.to_i])
     rescue Redis::CommandError => e
-      if e.message.include?('NOSCRIPT')
+      if e.message.include?("NOSCRIPT")
         sha1 = redis.script(:load, ADD_PROCESS_SCRIPT)
         @add_process_sha1 = sha1
         retry
