@@ -1,6 +1,7 @@
 [![Continuous Integration](https://github.com/bdurand/restrainer/actions/workflows/continuous_integration.yml/badge.svg)](https://github.com/bdurand/restrainer/actions/workflows/continuous_integration.yml)
 [![Regression Test](https://github.com/bdurand/restrainer/actions/workflows/regression_test.yml/badge.svg)](https://github.com/bdurand/restrainer/actions/workflows/regression_test.yml)
 [![Ruby Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://github.com/testdouble/standard)
+[![Gem Version](https://badge.fury.io/rb/restrainer.svg)](https://badge.fury.io/rb/restrainer)
 
 This gem provides a method of throttling calls across processes that can be very useful if you have to call an external service with limited resources.
 
