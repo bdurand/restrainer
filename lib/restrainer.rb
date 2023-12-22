@@ -38,7 +38,7 @@ class Restrainer
     -- Success so add to the list and set a global expiration so the list cleans up after itself.
     if process_count < limit then
       redis.call('zadd', sorted_set, now, process_id)
-      redis.call('expire', sorted_set, ttl)
+      redis.call('pexpire', sorted_set, math.ceil(ttl * 1000))
     end
 
     -- Return the number of processes running before the process was added.
@@ -151,6 +151,9 @@ class Restrainer
     process_id
   end
 
+  def lock(process_id = nil, limit: nil)
+  end
+
   # Release one of the allowed processes. You must pass in a process id
   # returned by the lock method.
   #
@@ -209,7 +212,7 @@ class Restrainer
     end
 
     begin
-      redis.evalsha(sha1, [], [key, process_id, throttle_limit, @timeout, Time.now.to_i])
+      redis.evalsha(sha1, [], [key, process_id, throttle_limit, @timeout, Time.now.to_f])
     rescue Redis::CommandError => e
       if e.message.include?("NOSCRIPT")
         sha1 = redis.script(:load, ADD_PROCESS_SCRIPT)

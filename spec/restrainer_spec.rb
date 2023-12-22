@@ -71,7 +71,7 @@ describe Restrainer do
   end
 
   it "should cleanup the running process list if orphaned processes exist" do
-    restrainer = Restrainer.new(:restrainer_test, limit: 1, timeout: 10)
+    restrainer = Restrainer.new(:restrainer_test, limit: 1, timeout: 10.1234)
     x = nil
     restrainer.throttle do
       Timecop.travel(11) do
