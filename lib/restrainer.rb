@@ -151,9 +151,6 @@ class Restrainer
     process_id
   end
 
-  def lock(process_id = nil, limit: nil)
-  end
-
   # Release one of the allowed processes. You must pass in a process id
   # returned by the lock method.
   #
