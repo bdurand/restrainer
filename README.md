@@ -50,7 +50,7 @@ Restrainer.redis = redis_client
 You can also pass in a `Redis` instance in the constructor.
 
 ```ruby
-restrainer = Restrainer.new(limit: 5, redis: my_redis)
+restrainer = Restrainer.new(:my_service, limit: 5, redis: my_redis)
 ```
 
 ### Internals
@@ -60,7 +60,7 @@ To protect against situations where a process is killed without a chance to clea
 The timeout can be set by the timeout option on the constructor. If you have any timeouts set on the services being called in the block, you should set the Restrainer timeout to a slightly higher value.
 
 ```ruby
-restrainer = Restrainer.new(:my_service, 100, timeout: 10)
+restrainer = Restrainer.new(:my_service, limit: 100, timeout: 10)
 ```
 
 This gem does clean up after itself nicely, so that it won't ever leave unused data lying around in redis.

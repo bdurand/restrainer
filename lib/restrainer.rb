@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "digest"
 require "redis"
 require "securerandom"
 
@@ -17,12 +18,17 @@ class Restrainer
   attr_reader :name, :limit
 
   ADD_PROCESS_SCRIPT = <<-LUA
+    redis.replicate_commands()
+
     -- Parse arguments
-    local sorted_set = ARGV[1]
-    local process_id = ARGV[2]
-    local limit = tonumber(ARGV[3])
-    local ttl = tonumber(ARGV[4])
-    local now = tonumber(ARGV[5])
+    local sorted_set = KEYS[1]
+    local process_id = ARGV[1]
+    local limit = tonumber(ARGV[2])
+    local ttl = tonumber(ARGV[3])
+
+    -- Use the Redis server clock so all clients share a consistent view of time.
+    local time = redis.call('time')
+    local now = tonumber(time[1]) + (tonumber(time[2]) / 1000000)
 
     -- Get count of current processes. If more than the max, check if any of the processes have timed out
     -- and try again.
@@ -45,8 +51,9 @@ class Restrainer
     return process_count
   LUA
 
-  # This class level variable will be used to load the SHA1 of the script at runtime.
-  @add_process_sha1 = nil
+  # SHA1 digest of the script used to call it with EVALSHA. The script itself is
+  # only loaded to the server if it isn't already cached there.
+  ADD_PROCESS_SCRIPT_SHA1 = Digest::SHA1.hexdigest(ADD_PROCESS_SCRIPT).freeze
 
   # This error will be thrown when the throttle block can't be executed.
   class ThrottledError < StandardError
@@ -67,9 +74,9 @@ class Restrainer
       if block
         @redis = block
       else
-        unless @redis
+        @redis ||= begin
           client = Redis.new
-          @redis = lambda { client }
+          lambda { client }
         end
         @redis.call
       end
@@ -113,7 +120,7 @@ class Restrainer
   #
   # @param limit [Integer] The maximum number of processes that can be executing
   #   at any one time. Defaults to the value passed to the constructor.
-  # @return [void]
+  # @return [Object] The value returned by the block.
   # @raise [Restrainer::ThrottledError] If the throttle would be exceeded.
   def throttle(limit: nil)
     limit ||= self.limit
@@ -137,7 +144,8 @@ class Restrainer
   #   passed, a unique value will be generated.
   # @param limit [Integer] The maximum number of processes that can be executing
   #   at any one time. Defaults to the value passed to the constructor.
-  # @return [String] The process identifier.
+  # @return [String, nil] The process identifier, or nil if the limit is negative
+  #   (i.e. the throttle is wide open and there is nothing to release).
   # @raise [Restrainer::ThrottledError] If the throttle would be exceeded.
   def lock!(process_id = nil, limit: nil)
     process_id ||= SecureRandom.uuid
@@ -196,28 +204,20 @@ class Restrainer
   # Remove a process to the currently run set. Returns true if the process was removed.
   def remove_process!(redis, process_id)
     result = redis.zrem(key, process_id)
-    result = true if result == 1
-    result
+    result == true || result == 1
   end
 
   # Evaluate and execute a Lua script on the redis server.
   def eval_script(redis, process_id, throttle_limit)
-    sha1 = @add_process_sha1
-    if sha1.nil?
-      sha1 = redis.script(:load, ADD_PROCESS_SCRIPT)
-      @add_process_sha1 = sha1
-    end
-
+    script_loaded = false
     begin
-      redis.evalsha(sha1, [], [key, process_id, throttle_limit, @timeout, Time.now.to_f])
+      redis.evalsha(ADD_PROCESS_SCRIPT_SHA1, [key], [process_id, throttle_limit, @timeout])
     rescue Redis::CommandError => e
-      if e.message.include?("NOSCRIPT")
-        sha1 = redis.script(:load, ADD_PROCESS_SCRIPT)
-        @add_process_sha1 = sha1
-        retry
-      else
-        raise e
-      end
+      raise if script_loaded || !e.message.include?("NOSCRIPT")
+
+      redis.script(:load, ADD_PROCESS_SCRIPT)
+      script_loaded = true
+      retry
     end
   end
 end
