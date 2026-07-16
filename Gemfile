@@ -2,8 +2,6 @@ source "https://rubygems.org"
 
 gemspec
 
-gem "timecop"
-
 gem "dotenv"
 gem "rspec", "~> 3.10"
 gem "appraisal"

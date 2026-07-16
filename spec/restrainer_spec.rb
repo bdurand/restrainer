@@ -72,13 +72,12 @@ describe Restrainer do
 
   it "should cleanup the running process list if orphaned processes exist" do
     restrainer = Restrainer.new(:restrainer_test, limit: 1, timeout: 10.1234)
+    key = restrainer.send(:key)
+    Restrainer.redis.zadd(key, Time.now.to_f - 11, "orphaned_process")
     x = nil
-    restrainer.throttle do
-      Timecop.travel(11) do
-        restrainer.throttle { x = 1 }
-      end
-    end
+    restrainer.throttle { x = 1 }
     expect(x).to eq(1)
+    expect(Restrainer.redis.zscore(key, "orphaned_process")).to eq(nil)
   end
 
   it "should be able to lock! and release! processes manually" do
@@ -133,5 +132,21 @@ describe Restrainer do
   it "should be able to override the limit in lock!" do
     restrainer = Restrainer.new(:restrainer_test, limit: 0)
     restrainer.lock!(limit: 1)
+  end
+
+  it "should return true from release! when the process was locked and false when it was not" do
+    restrainer = Restrainer.new(:restrainer_test, limit: 1)
+    process_id = restrainer.lock!
+    expect(restrainer.release!(process_id)).to eq true
+    expect(restrainer.release!(process_id)).to eq false
+    expect(restrainer.release!("nonexistent")).to eq false
+  end
+
+  it "should reload the script if it has been flushed from the script cache" do
+    restrainer = Restrainer.new(:restrainer_test, limit: 1)
+    Restrainer.redis.script(:flush)
+    x = nil
+    restrainer.throttle { x = 1 }
+    expect(x).to eq(1)
   end
 end
