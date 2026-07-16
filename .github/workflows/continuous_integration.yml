@@ -2,19 +2,18 @@ name: Continuous Integration
 on:
   push:
     branches:
-      - master
+      - main
       - actions-*
     tags:
       - v*
   pull_request:
-env:
-  BUNDLE_CLEAN: "true"
-  BUNDLE_PATH: vendor/bundle
-  BUNDLE_JOBS: 3
-  BUNDLE_RETRY: 3
+    branches-ignore:
+      - actions-*
+  workflow_dispatch:
+
 jobs:
   specs:
-    name: Run specs
+    name: ruby-${{ matrix.ruby }} ${{ matrix.appraisal }}
     runs-on: ubuntu-latest
     services:
       redis:
@@ -26,16 +25,28 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ruby: "ruby"
+            standardrb: true
+            yard: true
+          - ruby: "4.0"
+          - ruby: "3.0"
+          - ruby: "2.5"
+            frozen_strings: true
     steps:
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: set up Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ruby-version: "2.5"
-      - name: setup bundler
-        run: bundle update
-      - name: specs
-        run:  bundle exec rake spec
-      - name: standardrb
-        run:  bundle exec rake standard
+          persist-credentials: false
+      - name: Ruby CI
+        uses: bdurand/github-actions/ruby-ci@v1.0.3
+        with:
+          ruby: ${{ matrix.ruby }}
+          appraisal: ${{ matrix.appraisal }}
+          bundler: ${{ matrix.bundler }}
+          standardrb: ${{ matrix.standardrb }}
+          yard: ${{ matrix.yard }}
+          frozen_strings: ${{ matrix.frozen_strings }}

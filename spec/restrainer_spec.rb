@@ -2,7 +2,7 @@
 
 require_relative "spec_helper"
 
-describe Restrainer do
+RSpec.describe Restrainer do
   before(:each) do
     Restrainer.new(:restrainer_test, limit: 1).clear!
   end
